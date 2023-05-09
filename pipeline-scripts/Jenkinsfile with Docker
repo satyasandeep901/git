@@ -1,0 +1,63 @@
+pipeline {
+    agent any
+    environment {
+    DOCKERHUB_CREDENTIALS = credentials('dockerhub-account')
+    }
+    stages { 
+        stage('SCM Checkout') {
+            steps{
+            git 'https://gitlab.com/arsravis/taxigrabber.git'
+            }
+        }
+
+        stage('Build docker image') {
+            steps {  
+                sh 'docker build -t 10.1.1.100/development/taxigrabber:$BUILD_NUMBER .'
+                sh 'docker tag 10.1.1.100/development/taxigrabber:$BUILD_NUMBER 10.1.1.100/development/taxigrabber:latest'
+            }
+        }
+        stage ('Upload war to Artifactory') {
+       steps {
+       withCredentials([usernamePassword(credentialsId: 'sunil-harbor-account', usernameVariable: 'USER', passwordVariable: 'PASSWORD')]) {
+          script {
+             
+              sh (' docker login 10.1.1.100 --username ${USER} -p ${PASSWORD}')
+          }
+       }
+       }
+ }
+        stage('push image') {
+            steps{
+                sh 'docker push 10.1.1.100/development/taxigrabber:$BUILD_NUMBER'
+                sh 'docker push 10.1.1.100/development/taxigrabber:latest'
+            }
+        }
+        stage('Create POD on K8s')
+		{
+			steps{
+				sshagent(['jenkins-user'])
+				{
+					sh 'scp -r -o StrictHostKeyChecking=no taxigrabber-pod.yml dockeradmin@10.1.1.84:/home/dockeradmin/taxigrabber'
+					
+					script{
+						try{
+							sh 'ssh dockeradmin@10.10.10.184 minikube kubectl apply -- -f /home/dockeradmin/taxigrabber/taxigrabber-pod.yml'
+
+							}catch(error)
+                            {
+
+                            }
+                    }
+                }
+            }
+        }
+}
+post {
+        always {
+            sh 'docker logout'
+        }
+    }
+}
+
+
+

@@ -1,0 +1,38 @@
+pipeline {
+    agent any
+    environment {
+        PATH = "$PATH:/usr/share/maven/bin"
+    }
+    stages {
+        stage('git checkout') {
+            steps {
+                git 'https://github.com/ashokitschool/maven-web-app.git'
+            }
+        }
+        stage('Maven Build') {
+            steps {
+                sh "mvn clean install"
+            }
+        }
+        stage('SonarQube analysis') {
+            steps {
+            withSonarQubeEnv('Soner-Server-8.9.10') {
+            sh "mvn sonar:sonar"
+            }
+            }
+        }
+        stage('Artifact Upload') {
+            steps {
+                nexusArtifactUploader artifacts: [[artifactId: '01-maven-web-app', classifier: '', file: 'target/01-maven-web-app.war', type: 'war']], credentialsId: 'NEXUS-CREDENTIALS', groupId: 'SANDEEPGROUPOFPROJECTS', nexusUrl: '13.232.161.44:8081', nexusVersion: 'nexus3', protocol: 'http', repository: 'Ashok-it-project-repo', version: '1.0-SNAPSHOT'
+            }
+        }
+        stage('Deploy') {
+            steps {
+                sshagent(['Deploy_user']) {
+                   sh "scp -o StrictHostKeyChecking=no /var/lib/jenkins/workspace/myjob1/target/01-maven-web-app.war ubuntu@43.204.111.161:/opt/tomcat/webapps"
+
+                }
+            }
+        }
+    }
+}

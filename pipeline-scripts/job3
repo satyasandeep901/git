@@ -1,0 +1,11 @@
+pipeline {
+  agent {label 'ansiblemaster01'}
+
+  stages {
+    stage('Hello') {
+      steps {
+        sh 'ansible-playbook -i inventory ansible_playbooks/task1.yml'
+      }
+    }
+  }
+}
